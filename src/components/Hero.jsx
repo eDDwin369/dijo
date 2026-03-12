@@ -4,169 +4,169 @@ import { useEffect, useRef, useState, useCallback } from "react";
    useWindowSize hook
 ───────────────────────────────────────── */
 function useWindowSize() {
-  const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight });
-  useEffect(() => {
-    const handler = () => setSize({ width: window.innerWidth, height: window.innerHeight });
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
-  }, []);
-  return size;
+    const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+    useEffect(() => {
+        const handler = () => setSize({ width: window.innerWidth, height: window.innerHeight });
+        window.addEventListener("resize", handler);
+        return () => window.removeEventListener("resize", handler);
+    }, []);
+    return size;
 }
 
 /* ─────────────────────────────────────────
    Particle Canvas
 ───────────────────────────────────────── */
 function ParticleCanvas({ count = 110 }) {
-  const canvasRef = useRef(null);
-  const mouseRef = useRef({ x: null, y: null });
-  const animRef = useRef(null);
-  const particlesRef = useRef([]);
+    const canvasRef = useRef(null);
+    const mouseRef = useRef({ x: null, y: null });
+    const animRef = useRef(null);
+    const particlesRef = useRef([]);
 
-  const init = useCallback((canvas) => {
-    particlesRef.current = Array.from({ length: count }, () => ({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      vx: (Math.random() - 0.5) * 0.55,
-      vy: (Math.random() - 0.5) * 0.55,
-      r: Math.random() * 2 + 1,
-      a: Math.random() * 0.45 + 0.18,
-    }));
-  }, [count]);
+    const init = useCallback((canvas) => {
+        particlesRef.current = Array.from({ length: count }, () => ({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            vx: (Math.random() - 0.5) * 0.55,
+            vy: (Math.random() - 0.5) * 0.55,
+            r: Math.random() * 2 + 1,
+            a: Math.random() * 0.45 + 0.18,
+        }));
+    }, [count]);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    const resize = () => {
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
-      init(canvas);
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext("2d");
+        const resize = () => {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            init(canvas);
+        };
+        resize();
+        window.addEventListener("resize", resize);
+
+        const draw = () => {
+            const W = canvas.width, H = canvas.height;
+            ctx.clearRect(0, 0, W, H);
+            const ps = particlesRef.current;
+            const mx = mouseRef.current.x, my = mouseRef.current.y;
+
+            for (let i = 0; i < ps.length; i++) {
+                for (let j = i + 1; j < ps.length; j++) {
+                    const dx = ps[i].x - ps[j].x, dy = ps[i].y - ps[j].y;
+                    const d = Math.sqrt(dx * dx + dy * dy);
+                    if (d < 130) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = `rgba(59,130,246,${0.13 * (1 - d / 130)})`;
+                        ctx.lineWidth = 0.6;
+                        ctx.moveTo(ps[i].x, ps[i].y); ctx.lineTo(ps[j].x, ps[j].y);
+                        ctx.stroke();
+                    }
+                }
+                if (mx !== null) {
+                    const dx = ps[i].x - mx, dy = ps[i].y - my;
+                    const d = Math.sqrt(dx * dx + dy * dy);
+                    if (d < 170) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = `rgba(96,165,250,${0.4 * (1 - d / 170)})`;
+                        ctx.lineWidth = 1;
+                        ctx.moveTo(ps[i].x, ps[i].y); ctx.lineTo(mx, my);
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            for (const p of ps) {
+                if (mx !== null) {
+                    const dx = p.x - mx, dy = p.y - my;
+                    const d = Math.sqrt(dx * dx + dy * dy);
+                    if (d < 110) { const f = (110 - d) / 110; p.vx += (dx / d) * f * 0.28; p.vy += (dy / d) * f * 0.28; }
+                }
+                p.vx *= 0.979; p.vy *= 0.979;
+                p.x += p.vx; p.y += p.vy;
+                if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
+                if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
+                const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 2.5);
+                g.addColorStop(0, `rgba(147,210,255,${p.a + 0.15})`);
+                g.addColorStop(1, "rgba(59,130,246,0)");
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 2.5, 0, Math.PI * 2);
+                ctx.fillStyle = g; ctx.fill();
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(210,235,255,${p.a + 0.25})`; ctx.fill();
+            }
+            animRef.current = requestAnimationFrame(draw);
+        };
+        draw();
+
+        return () => { cancelAnimationFrame(animRef.current); window.removeEventListener("resize", resize); };
+    }, [init]);
+
+    const onMove = (e) => {
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (rect) {
+            const src = e.touches ? e.touches[0] : e;
+            mouseRef.current = { x: src.clientX - rect.left, y: src.clientY - rect.top };
+        }
     };
-    resize();
-    window.addEventListener("resize", resize);
+    const onLeave = () => { mouseRef.current = { x: null, y: null }; };
 
-    const draw = () => {
-      const W = canvas.width, H = canvas.height;
-      ctx.clearRect(0, 0, W, H);
-      const ps = particlesRef.current;
-      const mx = mouseRef.current.x, my = mouseRef.current.y;
-
-      for (let i = 0; i < ps.length; i++) {
-        for (let j = i + 1; j < ps.length; j++) {
-          const dx = ps[i].x - ps[j].x, dy = ps[i].y - ps[j].y;
-          const d = Math.sqrt(dx * dx + dy * dy);
-          if (d < 130) {
-            ctx.beginPath();
-            ctx.strokeStyle = `rgba(59,130,246,${0.13 * (1 - d / 130)})`;
-            ctx.lineWidth = 0.6;
-            ctx.moveTo(ps[i].x, ps[i].y); ctx.lineTo(ps[j].x, ps[j].y);
-            ctx.stroke();
-          }
-        }
-        if (mx !== null) {
-          const dx = ps[i].x - mx, dy = ps[i].y - my;
-          const d = Math.sqrt(dx * dx + dy * dy);
-          if (d < 170) {
-            ctx.beginPath();
-            ctx.strokeStyle = `rgba(96,165,250,${0.4 * (1 - d / 170)})`;
-            ctx.lineWidth = 1;
-            ctx.moveTo(ps[i].x, ps[i].y); ctx.lineTo(mx, my);
-            ctx.stroke();
-          }
-        }
-      }
-
-      for (const p of ps) {
-        if (mx !== null) {
-          const dx = p.x - mx, dy = p.y - my;
-          const d = Math.sqrt(dx * dx + dy * dy);
-          if (d < 110) { const f = (110 - d) / 110; p.vx += (dx / d) * f * 0.28; p.vy += (dy / d) * f * 0.28; }
-        }
-        p.vx *= 0.979; p.vy *= 0.979;
-        p.x += p.vx; p.y += p.vy;
-        if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
-        if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
-        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 2.5);
-        g.addColorStop(0, `rgba(147,210,255,${p.a + 0.15})`);
-        g.addColorStop(1, "rgba(59,130,246,0)");
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 2.5, 0, Math.PI * 2);
-        ctx.fillStyle = g; ctx.fill();
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(210,235,255,${p.a + 0.25})`; ctx.fill();
-      }
-      animRef.current = requestAnimationFrame(draw);
-    };
-    draw();
-
-    return () => { cancelAnimationFrame(animRef.current); window.removeEventListener("resize", resize); };
-  }, [init]);
-
-  const onMove = (e) => {
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (rect) {
-      const src = e.touches ? e.touches[0] : e;
-      mouseRef.current = { x: src.clientX - rect.left, y: src.clientY - rect.top };
-    }
-  };
-  const onLeave = () => { mouseRef.current = { x: null, y: null }; };
-
-  return (
-    <canvas
-      ref={canvasRef}
-      onMouseMove={onMove} onMouseLeave={onLeave}
-      onTouchMove={onMove} onTouchEnd={onLeave}
-      style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
-    />
-  );
+    return (
+        <canvas
+            ref={canvasRef}
+            onMouseMove={onMove} onMouseLeave={onLeave}
+            onTouchMove={onMove} onTouchEnd={onLeave}
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+        />
+    );
 }
 
 /* ─────────────────────────────────────────
    FloatCard
 ───────────────────────────────────────── */
 function FloatCard({ label, animClass, style, children }) {
-  return (
-    <div className={`float-card ${animClass}`} style={style}>
-      <div className="fc-label">{label}</div>
-      <div className="fc-val">{children}</div>
-    </div>
-  );
+    return (
+        <div className={`float-card ${animClass}`} style={style}>
+            <div className="fc-label">{label}</div>
+            <div className="fc-val">{children}</div>
+        </div>
+    );
 }
 
 /* ─────────────────────────────────────────
    Main Component
 ───────────────────────────────────────── */
 export default function HeroSection() {
-  const { width } = useWindowSize();
-  const [scrolled, setScrolled] = useState(false);
-  const [visible, setVisible] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+    const { width } = useWindowSize();
+    const [scrolled, setScrolled] = useState(false);
+    const [visible, setVisible] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
 
-  const isMobile = width < 768;
-  const isTablet = width >= 768 && width < 1024;
-  const isLarge = width >= 1440;
+    const isMobile = width < 768;
+    const isTablet = width >= 768 && width < 1024;
+    const isLarge = width >= 1440;
 
-  useEffect(() => {
-    const t = setTimeout(() => setVisible(true), 80);
-    const onScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", onScroll);
-    return () => { clearTimeout(t); window.removeEventListener("scroll", onScroll); };
-  }, []);
+    useEffect(() => {
+        const t = setTimeout(() => setVisible(true), 80);
+        const onScroll = () => setScrolled(window.scrollY > 20);
+        window.addEventListener("scroll", onScroll);
+        return () => { clearTimeout(t); window.removeEventListener("scroll", onScroll); };
+    }, []);
 
-  // Close menu on resize to desktop
-  useEffect(() => { if (!isMobile) setMenuOpen(false); }, [isMobile]);
+    // Close menu on resize to desktop
+    useEffect(() => { if (!isMobile) setMenuOpen(false); }, [isMobile]);
 
-  const navLinks = ["Features", "Solutions", "Pricing", "About"];
+    const navLinks = ["Home", "About Us", "Services", "Projects", "Brands", "Blog", "Contact"];
 
-  const fadeUp = (delay) => ({
-    opacity: visible ? 1 : 0,
-    transform: visible ? "translateY(0)" : "translateY(28px)",
-    transition: `opacity 0.7s ease ${delay}s, transform 0.7s ease ${delay}s`,
-  });
+    const fadeUp = (delay) => ({
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateY(0)" : "translateY(28px)",
+        transition: `opacity 0.7s ease ${delay}s, transform 0.7s ease ${delay}s`,
+    });
 
-  const headerPad = isMobile ? "14px 20px" : isTablet ? "16px 32px" : scrolled ? "12px 56px" : "20px 56px";
+    const headerPad = isMobile ? "14px 20px" : isTablet ? "16px 32px" : scrolled ? "12px 56px" : "20px 56px";
 
-  return (
-    <div style={{ fontFamily: "'DM Sans',sans-serif", background: "#eff6ff", minHeight: "100vh" }}>
-      <style>{`
+    return (
+        <div style={{ fontFamily: "'DM Sans',sans-serif", background: "#eff6ff", minHeight: "100vh" }}>
+            <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { overflow-x: hidden; }
@@ -229,190 +229,193 @@ export default function HeroSection() {
         }
       `}</style>
 
-      {/* ── HEADER ── */}
-      <header style={{
-        position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
-        padding: headerPad,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        background: scrolled || menuOpen ? "rgba(240,247,255,0.95)" : "transparent",
-        backdropFilter: scrolled || menuOpen ? "blur(20px)" : "none",
-        borderBottom: scrolled ? "1px solid rgba(147,197,253,0.3)" : "1px solid transparent",
-        transition: "all 0.4s ease",
-      }}>
-        {/* Logo */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, zIndex: 200 }}>
-          <div style={{ width: isMobile ? 28 : 34, height: isMobile ? 28 : 34, background: "linear-gradient(135deg,#1d4ed8,#60a5fa)", clipPath: "polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%)" }} />
-          <span style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: isMobile ? "1.3rem" : "1.6rem", fontWeight: 600, color: "#1e3a8a", letterSpacing: ".02em" }}>Luminary</span>
-        </div>
-
-        {/* Desktop Nav */}
-        {!isMobile && (
-          <nav style={{ display: "flex", gap: isTablet ? 24 : 36, alignItems: "center" }}>
-            {navLinks.map(l => <a key={l} href="#" className="nav-link">{l}</a>)}
-          </nav>
-        )}
-
-        {/* Desktop Right */}
-        {!isMobile && (
-          <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-            {!isTablet && <button className="btn-ghost">Sign in</button>}
-            <button className="btn-header">Get Started</button>
-          </div>
-        )}
-
-        {/* Hamburger */}
-        {isMobile && (
-          <button className={`hamburger ${menuOpen ? "open" : ""}`} onClick={() => setMenuOpen(o => !o)} aria-label="Toggle menu">
-            <span /><span /><span />
-          </button>
-        )}
-      </header>
-
-      {/* Mobile Menu */}
-      <div className={`mobile-menu ${menuOpen ? "open" : ""}`}>
-        <nav style={{ marginBottom: 40 }}>
-          {navLinks.map(l => (
-            <a key={l} href="#" className="mobile-nav-link" onClick={() => setMenuOpen(false)}>{l}</a>
-          ))}
-        </nav>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <button className="btn-cta-primary" style={{ padding: "15px 0", fontSize: ".9rem", width: "100%" }}>Start Building Free</button>
-          <button className="btn-cta-secondary" style={{ padding: "14px 0", fontSize: ".9rem", width: "100%" }}>Sign In</button>
-        </div>
-      </div>
-
-      {/* ── HERO ── */}
-      <section style={{
-        position: "relative", minHeight: "100vh",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        overflow: "hidden",
-        background: "linear-gradient(155deg,#eff6ff 0%,#dbeafe 45%,#bfdbfe 80%,#e0f2fe 100%)",
-      }}>
-        <ParticleCanvas count={isMobile ? 60 : isTablet ? 80 : 110} />
-
-        {/* Orbs */}
-        <div style={{ position: "absolute", borderRadius: "50%", pointerEvents: "none", width: isMobile ? 300 : 600, height: isMobile ? 300 : 600, top: "-10%", left: "-5%", background: "radial-gradient(circle,rgba(59,130,246,0.1) 0%,transparent 70%)" }} />
-        <div style={{ position: "absolute", borderRadius: "50%", pointerEvents: "none", width: isMobile ? 350 : 700, height: isMobile ? 350 : 700, bottom: "-15%", right: "-8%", background: "radial-gradient(circle,rgba(147,197,253,0.18) 0%,transparent 70%)" }} />
-
-        {/* Floating Cards — hidden on mobile via CSS */}
-        <FloatCard label="Workflow" animClass="float1" style={{ left: isTablet ? "2%" : "5%", top: isTablet ? "32%" : "38%" }}>
-          ✦ Automated
-        </FloatCard>
-        <FloatCard label="Performance" animClass="float2" style={{ right: isTablet ? "2%" : "5%", top: isTablet ? "24%" : "30%" }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ display: "inline-block", width: 64, height: 4, background: "#dbeafe", borderRadius: 2, overflow: "hidden" }}>
-              <span style={{ display: "block", width: "87%", height: "100%", background: "linear-gradient(90deg,#3b82f6,#60a5fa)", borderRadius: 2 }} />
-            </span>
-            87%
-          </span>
-        </FloatCard>
-        <FloatCard label="Deploy" animClass="float3" style={{ right: isTablet ? "2%" : "7%", bottom: isTablet ? "14%" : "20%" }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-            <span style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg,#dbeafe,#bfdbfe)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>✦</span>
-            Live 2s ago
-          </span>
-        </FloatCard>
-
-        {/* Main Content */}
-        <div style={{
-          position: "relative", zIndex: 10, textAlign: "center",
-          maxWidth: isLarge ? 960 : 820,
-          width: "100%",
-          padding: isMobile ? "100px 20px 60px" : isTablet ? "110px 40px 60px" : "120px 24px 60px",
-        }}>
-          {/* Badge */}
-          <div style={{ marginBottom: isMobile ? 20 : 28, ...fadeUp(0.1) }}>
-            <span style={{
-              display: "inline-flex", alignItems: "center", gap: 8,
-              background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.25)",
-              color: "#1d4ed8", padding: "6px 18px", borderRadius: 100,
-              fontSize: ".75rem", fontWeight: 500, letterSpacing: ".1em", textTransform: "uppercase",
+            {/* ── HEADER ── */}
+            <header style={{
+                position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
+                padding: headerPad,
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                background: scrolled || menuOpen ? "rgba(240,247,255,0.95)" : "transparent",
+                backdropFilter: scrolled || menuOpen ? "blur(20px)" : "none",
+                borderBottom: scrolled ? "1px solid rgba(147,197,253,0.3)" : "1px solid transparent",
+                transition: "all 0.4s ease",
             }}>
-              <span className="badge-dot" /> Now in Public Beta
-            </span>
-          </div>
+                {/* Logo */}
+                <div style={{ display: "flex", alignItems: "center" }}>
+                    <img
+                        src="https://www.3rdeyess.com/img/logo-white.png"
+                        alt="logo"
+                        style={{ height: "40px" }}
+                    />
+                </div>
 
-          {/* Headline */}
-          <div style={{
-            fontFamily: "'Cormorant Garamond',serif",
-            fontSize: isMobile ? "2.8rem" : isTablet ? "4rem" : isLarge ? "6.5rem" : "5.5rem",
-            fontWeight: 300, lineHeight: 1.05, color: "#1e3a8a", letterSpacing: "-.01em",
-            ...fadeUp(0.2)
-          }}>Design the Future</div>
-          <div style={{
-            fontFamily: "'Cormorant Garamond',serif",
-            fontSize: isMobile ? "2.8rem" : isTablet ? "4rem" : isLarge ? "6.5rem" : "5.5rem",
-            fontWeight: 600, lineHeight: 1.05, letterSpacing: "-.01em",
-            marginBottom: isMobile ? 18 : 24,
-            ...fadeUp(0.3)
-          }}>
-            <span className="shimmer-text">with Precision</span>
-          </div>
+                {/* Desktop Nav */}
+                {!isMobile && (
+                    <nav style={{ display: "flex", gap: isTablet ? 24 : 36, alignItems: "center" }}>
+                        {navLinks.map(l => <a key={l} href="#" className="nav-link">{l}</a>)}
+                    </nav>
+                )}
 
-          {/* Sub */}
-          <p style={{
-            fontSize: isMobile ? ".95rem" : isTablet ? "1rem" : "1.05rem",
-            fontWeight: 300, color: "#3b5ea6", lineHeight: 1.8,
-            maxWidth: isMobile ? "100%" : 560, margin: "0 auto",
-            marginBottom: isMobile ? 32 : 40,
-            ...fadeUp(0.4)
-          }}>
-            An intelligent platform that transforms how your team collaborates,
-            creates, and ships extraordinary digital experiences at scale.
-          </p>
+                {/* Desktop Right */}
+                {!isMobile && (
+                    <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+                        {/* {!isTablet && <button className="btn-ghost">Sign in</button>} */}
+                        {/* <button className="btn-header">Get Started</button> */}
+                    </div>
+                )}
 
-          {/* CTAs */}
-          <div style={{
-            display: "flex",
-            flexDirection: isMobile ? "column" : "row",
-            gap: isMobile ? 12 : 16,
-            justifyContent: "center",
-            alignItems: "center",
-            marginBottom: isMobile ? 40 : 60,
-            ...fadeUp(0.5)
-          }}>
-            <button className="btn-cta-primary" style={{
-              padding: isMobile ? "14px 0" : "15px 40px",
-              fontSize: isMobile ? ".88rem" : ".9rem",
-              width: isMobile ? "100%" : "auto",
-            }}>Start Building Free</button>
-            <button className="btn-cta-secondary" style={{
-              padding: isMobile ? "13px 0" : "14px 40px",
-              fontSize: isMobile ? ".88rem" : ".9rem",
-              width: isMobile ? "100%" : "auto",
-            }}>Watch Demo →</button>
-          </div>
+                {/* Hamburger */}
+                {isMobile && (
+                    <button className={`hamburger ${menuOpen ? "open" : ""}`} onClick={() => setMenuOpen(o => !o)} aria-label="Toggle menu">
+                        <span /><span /><span />
+                    </button>
+                )}
+            </header>
 
-          {/* Stats */}
-          <div style={{
-            display: "flex",
-            flexDirection: isMobile ? "row" : "row",
-            flexWrap: "wrap",
-            gap: isMobile ? 10 : 16,
-            justifyContent: "center",
-            ...fadeUp(0.65)
-          }}>
-            {[{ val: "50K+", label: "Active Teams" }, { val: "99.9%", label: "Uptime SLA" }, { val: "4.9★", label: "User Rating" }].map(s => (
-              <div key={s.val} className="stat-card" style={{
-                padding: isMobile ? "14px 18px" : isLarge ? "24px 40px" : "20px 30px",
-                flex: isMobile ? "1 1 calc(33% - 10px)" : "0 0 auto",
-                minWidth: isMobile ? 80 : 120,
-              }}>
-                <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: isMobile ? "1.5rem" : isLarge ? "2.5rem" : "2.1rem", fontWeight: 600, color: "#1d4ed8", lineHeight: 1, marginBottom: 4 }}>{s.val}</div>
-                <div style={{ fontSize: isMobile ? ".62rem" : ".72rem", color: "#6b8cbf", letterSpacing: ".1em", textTransform: "uppercase" }}>{s.label}</div>
-              </div>
-            ))}
-          </div>
+            {/* Mobile Menu */}
+            <div className={`mobile-menu ${menuOpen ? "open" : ""}`}>
+                <nav style={{ marginBottom: 40 }}>
+                    {navLinks.map(l => (
+                        <a key={l} href="#" className="mobile-nav-link" onClick={() => setMenuOpen(false)}>{l}</a>
+                    ))}
+                </nav>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <button className="btn-cta-primary" style={{ padding: "15px 0", fontSize: ".9rem", width: "100%" }}>Start Building Free</button>
+                    <button className="btn-cta-secondary" style={{ padding: "14px 0", fontSize: ".9rem", width: "100%" }}>Sign In</button>
+                </div>
+            </div>
+
+            {/* ── HERO ── */}
+            <section style={{
+                position: "relative", minHeight: "100vh",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                overflow: "hidden",
+                background: "linear-gradient(155deg,#eff6ff 0%,#dbeafe 45%,#bfdbfe 80%,#e0f2fe 100%)",
+            }}>
+                <ParticleCanvas count={isMobile ? 60 : isTablet ? 80 : 110} />
+
+                {/* Orbs */}
+                <div style={{ position: "absolute", borderRadius: "50%", pointerEvents: "none", width: isMobile ? 300 : 600, height: isMobile ? 300 : 600, top: "-10%", left: "-5%", background: "radial-gradient(circle,rgba(59,130,246,0.1) 0%,transparent 70%)" }} />
+                <div style={{ position: "absolute", borderRadius: "50%", pointerEvents: "none", width: isMobile ? 350 : 700, height: isMobile ? 350 : 700, bottom: "-15%", right: "-8%", background: "radial-gradient(circle,rgba(147,197,253,0.18) 0%,transparent 70%)" }} />
+
+                {/* Floating Cards — hidden on mobile via CSS */}
+                <FloatCard label="Workflow" animClass="float1" style={{ left: isTablet ? "2%" : "5%", top: isTablet ? "32%" : "38%" }}>
+                    ✦ Automated
+                </FloatCard>
+                <FloatCard label="Performance" animClass="float2" style={{ right: isTablet ? "2%" : "5%", top: isTablet ? "24%" : "30%" }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ display: "inline-block", width: 64, height: 4, background: "#dbeafe", borderRadius: 2, overflow: "hidden" }}>
+                            <span style={{ display: "block", width: "87%", height: "100%", background: "linear-gradient(90deg,#3b82f6,#60a5fa)", borderRadius: 2 }} />
+                        </span>
+                        87%
+                    </span>
+                </FloatCard>
+                <FloatCard label="Deploy" animClass="float3" style={{ right: isTablet ? "2%" : "7%", bottom: isTablet ? "14%" : "20%" }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg,#dbeafe,#bfdbfe)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>✦</span>
+                        Live 2s ago
+                    </span>
+                </FloatCard>
+
+                {/* Main Content */}
+                <div style={{
+                    position: "relative", zIndex: 10, textAlign: "center",
+                    maxWidth: isLarge ? 960 : 820,
+                    width: "100%",
+                    padding: isMobile ? "100px 20px 60px" : isTablet ? "110px 40px 60px" : "120px 24px 60px",
+                }}>
+                    {/* Badge */}
+                    <div style={{ marginBottom: isMobile ? 20 : 28, ...fadeUp(0.1) }}>
+                        <span style={{
+                            display: "inline-flex", alignItems: "center", gap: 8,
+                            background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.25)",
+                            color: "#1d4ed8", padding: "6px 18px", borderRadius: 100,
+                            fontSize: ".75rem", fontWeight: 500, letterSpacing: ".1em", textTransform: "uppercase",
+                        }}>
+                            <span className="badge-dot" /> Now in Public Beta
+                        </span>
+                    </div>
+
+                    {/* Headline */}
+                    <div style={{
+                        fontFamily: "'Cormorant Garamond',serif",
+                        fontSize: isMobile ? "2.8rem" : isTablet ? "4rem" : isLarge ? "6.5rem" : "5.5rem",
+                        fontWeight: 300, lineHeight: 1.05, color: "#1e3a8a", letterSpacing: "-.01em",
+                        ...fadeUp(0.2)
+                    }}>Advanced Security</div>
+                    <div style={{
+                        fontFamily: "'Cormorant Garamond',serif",
+                        fontSize: isMobile ? "2.8rem" : isTablet ? "4rem" : isLarge ? "6.5rem" : "5.5rem",
+                        fontWeight: 600, lineHeight: 1.05, letterSpacing: "-.01em",
+                        marginBottom: isMobile ? 18 : 24,
+                        ...fadeUp(0.3)
+                    }}>
+                        <span className="shimmer-text">Solar & Smart Solutions</span>
+                    </div>
+
+                    {/* Sub */}
+                    <p style={{
+                        fontSize: isMobile ? ".95rem" : isTablet ? "1rem" : "1.05rem",
+                        fontWeight: 300, color: "#3b5ea6", lineHeight: 1.8,
+                        maxWidth: isMobile ? "100%" : 560, margin: "0 auto",
+                        marginBottom: isMobile ? 32 : 40,
+                        ...fadeUp(0.4)
+                    }}>
+                        Smart Surveillance & Reliable Solar Power <br />
+                        Secure your space and energize your future.
+                    </p>
+
+                    {/* CTAs */}
+                    <div style={{
+                        display: "flex",
+                        flexDirection: isMobile ? "column" : "row",
+                        gap: isMobile ? 12 : 16,
+                        justifyContent: "center",
+                        alignItems: "center",
+                        marginBottom: isMobile ? 40 : 60,
+                        ...fadeUp(0.5)
+                    }}>
+                        <button className="btn-cta-primary" style={{
+                            padding: isMobile ? "14px 0" : "15px 40px",
+                            fontSize: isMobile ? ".88rem" : ".9rem",
+                            width: isMobile ? "100%" : "auto",
+                        }}>Get Free Survey</button>
+                        <button className="btn-cta-secondary" style={{
+                            padding: isMobile ? "13px 0" : "14px 40px",
+                            fontSize: isMobile ? ".88rem" : ".9rem",
+                            width: isMobile ? "100%" : "auto",
+                        }}>Whatsapp →</button>
+                    </div>
+
+                    {/* Stats */}
+                    <div style={{
+                        display: "flex",
+                        flexDirection: isMobile ? "row" : "row",
+                        flexWrap: "wrap",
+                        gap: isMobile ? 10 : 16,
+                        justifyContent: "center",
+                        ...fadeUp(0.65)
+                    }}>
+                        {[{ val: "50K+", label: "Active Teams" }, { val: "99.9%", label: "Uptime SLA" }, { val: "4.9★", label: "User Rating" }].map(s => (
+                            <div key={s.val} className="stat-card" style={{
+                                padding: isMobile ? "14px 18px" : isLarge ? "24px 40px" : "20px 30px",
+                                flex: isMobile ? "1 1 calc(33% - 10px)" : "0 0 auto",
+                                minWidth: isMobile ? 80 : 120,
+                            }}>
+                                <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: isMobile ? "1.5rem" : isLarge ? "2.5rem" : "2.1rem", fontWeight: 600, color: "#1d4ed8", lineHeight: 1, marginBottom: 4 }}>{s.val}</div>
+                                <div style={{ fontSize: isMobile ? ".62rem" : ".72rem", color: "#6b8cbf", letterSpacing: ".1em", textTransform: "uppercase" }}>{s.label}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Scroll hint */}
+                {!isMobile && (
+                    <div className="scroll-anim" style={{ position: "absolute", bottom: 28, left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, opacity: 0.45 }}>
+                        <span style={{ fontSize: ".68rem", letterSpacing: ".2em", textTransform: "uppercase", color: "#3b82f6" }}>Scroll</span>
+                        <div style={{ width: 1, height: 40, background: "linear-gradient(to bottom,#3b82f6,transparent)" }} />
+                    </div>
+                )}
+            </section>
         </div>
-
-        {/* Scroll hint */}
-        {!isMobile && (
-          <div className="scroll-anim" style={{ position: "absolute", bottom: 28, left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, opacity: 0.45 }}>
-            <span style={{ fontSize: ".68rem", letterSpacing: ".2em", textTransform: "uppercase", color: "#3b82f6" }}>Scroll</span>
-            <div style={{ width: 1, height: 40, background: "linear-gradient(to bottom,#3b82f6,transparent)" }} />
-          </div>
-        )}
-      </section>
-    </div>
-  );
+    );
 }
